@@ -4,20 +4,20 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 pub struct Project {
     name: String,
-    path: PathBuf,
+    pub path: PathBuf,
 }
 
 #[derive(Debug)]
 pub struct Remote {
     name: String,
     path: PathBuf,
-    projects: Vec<Project>,
+    pub projects: Vec<Project>,
 }
 
 #[derive(Debug)]
 pub struct Root {
     path: PathBuf,
-    remotes: Vec<Remote>,
+    pub remotes: Vec<Remote>,
 }
 
 #[derive(Debug)]

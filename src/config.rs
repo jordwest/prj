@@ -40,7 +40,6 @@ impl Config {
         ];
         for path in expected_locations {
             if path.exists() {
-                println!("{:?}", path);
                 return Config::load_from(&path);
             }
         }
@@ -65,8 +64,6 @@ impl Config {
     }
 
     pub fn write_config(&self) -> Result<(), WriteError> {
-        println!("Writing to {:?}", self.location);
-
         let output = toml::to_vec(self).or(Err(WriteError::SerializeError))?;
         let mut f = File::create(&self.location).or_else(|e| Err(WriteError::IoError(e)))?;
 
