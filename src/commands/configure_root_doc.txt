@@ -1,0 +1,12 @@
+================ Choose a root for your projects ==================
+Under this directory, your projects will be sorted into directories
+based on where their origins are. For example, if you choose a root
+
+    /Users/myhome/src
+
+Your directory structure could look as follows:
+
+    /Users/myhome/src/github.com/jordwest/prj
+    /Users/myhome/src/github.com/me/some-project
+    /Users/myhome/src/local/scratch
+===================================================================
