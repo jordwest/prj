@@ -4,14 +4,15 @@ use crossterm::{
     cursor,
     event::{read, Event, KeyCode},
     execute, queue,
-    style::{self, Color, Colorize, Print, SetBackgroundColor, SetForegroundColor},
-    terminal, ExecutableCommand, QueueableCommand, Result,
+    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    terminal, Result,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::cmp::Ord;
-use std::io::{stdout, Write};
+use std::io::{stderr, Write};
 use std::path::PathBuf;
+use term_size::dimensions_stderr;
 
 #[derive(Debug)]
 struct MatchResult {
@@ -54,15 +55,17 @@ impl UiState {
 }
 
 // https://jonasjacek.github.io/colors/
-static highlight_bg: Color = Color::AnsiValue(236);
-static result_footer_fg: Color = Color::AnsiValue(219);
+static HIGHLIGHT_BG: Color = Color::AnsiValue(236);
+static RESULT_FOOTER_FG: Color = Color::AnsiValue(219);
 
 fn render(query: &str, state: &UiState) -> Result<()> {
-    let mut stdout = stdout();
+    let mut stderr = stderr();
 
-    execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+    execute!(stderr, terminal::Clear(terminal::ClearType::All))?;
 
-    let (_, rows) = terminal::size()?;
+    // let (_, rows) = terminal::size()?;
+    let (_, rows) = dimensions_stderr().unwrap();
+    let rows = rows as u16;
 
     let mut row = rows - 3;
     for (i, result) in state.results.iter().enumerate() {
@@ -70,16 +73,16 @@ fn render(query: &str, state: &UiState) -> Result<()> {
 
         if is_selected {
             queue!(
-                stdout,
-                SetBackgroundColor(highlight_bg),
+                stderr,
+                SetBackgroundColor(HIGHLIGHT_BG),
                 SetForegroundColor(Color::White),
                 cursor::MoveTo(0, row),
                 Print("> "),
             );
         } else {
             queue!(
-                stdout,
-                SetBackgroundColor(highlight_bg),
+                stderr,
+                SetBackgroundColor(HIGHLIGHT_BG),
                 SetForegroundColor(Color::Reset),
                 cursor::MoveTo(0, row),
                 Print(" "),
@@ -87,7 +90,7 @@ fn render(query: &str, state: &UiState) -> Result<()> {
             );
         }
         queue!(
-            stdout,
+            stderr,
             cursor::MoveTo(2, row),
             Print(result.path.to_str().unwrap()),
             SetForegroundColor(Color::Reset),
@@ -102,11 +105,11 @@ fn render(query: &str, state: &UiState) -> Result<()> {
 
     let prompt_row = rows - 1;
     queue!(
-        stdout,
-        SetForegroundColor(result_footer_fg),
+        stderr,
+        SetForegroundColor(RESULT_FOOTER_FG),
         cursor::MoveTo(2, prompt_row - 1),
         Print(format!("{}", state.results.len())),
-        SetBackgroundColor(highlight_bg),
+        SetBackgroundColor(HIGHLIGHT_BG),
         SetForegroundColor(Color::Blue),
         cursor::MoveTo(0, prompt_row),
         Print(">"),
@@ -116,7 +119,7 @@ fn render(query: &str, state: &UiState) -> Result<()> {
         SetForegroundColor(Color::Reset)
     );
 
-    stdout.flush()?;
+    stderr.flush()?;
 
     Ok(())
 }
@@ -131,7 +134,9 @@ pub fn run(config: &Config) {
         results: vec![],
         selected_index: 0,
     };
+    let mut selected_project = None;
 
+    execute!(stderr(), terminal::EnterAlternateScreen);
     while !exit {
         ui_state.results = Vec::new();
         for remote in &root.remotes {
@@ -151,17 +156,34 @@ pub fn run(config: &Config) {
         render(&ui_state.query, &ui_state);
 
         terminal::enable_raw_mode();
-        match read().unwrap() {
+        let read_result = read();
+        terminal::disable_raw_mode();
+
+        match read_result.unwrap() {
             Event::Key(event) => match event.code {
                 KeyCode::Char(c) => ui_state.add_char(c),
                 KeyCode::Backspace => ui_state.remove_char(),
                 KeyCode::Down => ui_state.select_prev(),
                 KeyCode::Up => ui_state.select_next(),
                 KeyCode::Esc => exit = true,
+                KeyCode::Enter => {
+                    selected_project = Some(
+                        ui_state.results[ui_state.selected_index]
+                            .path
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                    );
+                    exit = true;
+                }
                 _ => (),
             },
             _ => (),
         };
-        terminal::disable_raw_mode();
+    }
+    execute!(stderr(), terminal::LeaveAlternateScreen);
+
+    if let Some(path) = selected_project {
+        println!("{}", path);
     }
 }
