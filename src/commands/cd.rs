@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::git::GitProject;
 use crate::traverse;
 use crossterm::{
     cursor,
@@ -127,6 +128,7 @@ pub fn run(config: &Config) -> Result<()> {
     let matcher = SkimMatcherV2::default();
 
     let root = traverse::Root::traverse(config).unwrap();
+
     let mut exit = false;
     let mut ui_state = UiState {
         query: String::from(""),
@@ -166,13 +168,7 @@ pub fn run(config: &Config) -> Result<()> {
                 KeyCode::Up => ui_state.select_next(),
                 KeyCode::Esc => exit = true,
                 KeyCode::Enter => {
-                    selected_project = Some(
-                        ui_state.results[ui_state.selected_index]
-                            .path
-                            .to_str()
-                            .unwrap()
-                            .to_string(),
-                    );
+                    selected_project = Some(ui_state.results[ui_state.selected_index].path.clone());
                     exit = true;
                 }
                 _ => (),
@@ -183,7 +179,8 @@ pub fn run(config: &Config) -> Result<()> {
     execute!(stderr(), terminal::LeaveAlternateScreen)?;
 
     if let Some(path) = selected_project {
-        println!("{}", path);
+        let p = GitProject::from_path(&path);
+        println!("{:#?}", p);
     }
     Ok(())
 }

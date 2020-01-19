@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod git;
 mod traverse;
 
 use config::Config;
