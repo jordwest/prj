@@ -63,7 +63,6 @@ fn render(query: &str, state: &UiState) -> Result<()> {
 
     execute!(stderr, terminal::Clear(terminal::ClearType::All))?;
 
-    // let (_, rows) = terminal::size()?;
     let (_, rows) = dimensions_stderr().unwrap();
     let rows = rows as u16;
 
@@ -78,7 +77,7 @@ fn render(query: &str, state: &UiState) -> Result<()> {
                 SetForegroundColor(Color::White),
                 cursor::MoveTo(0, row),
                 Print("> "),
-            );
+            )?;
         } else {
             queue!(
                 stderr,
@@ -87,7 +86,7 @@ fn render(query: &str, state: &UiState) -> Result<()> {
                 cursor::MoveTo(0, row),
                 Print(" "),
                 SetBackgroundColor(Color::Reset),
-            );
+            )?;
         }
         queue!(
             stderr,
@@ -95,7 +94,7 @@ fn render(query: &str, state: &UiState) -> Result<()> {
             Print(result.path.to_str().unwrap()),
             SetForegroundColor(Color::Reset),
             SetBackgroundColor(Color::Reset),
-        );
+        )?;
 
         if (row == 0) {
             break;
@@ -117,14 +116,14 @@ fn render(query: &str, state: &UiState) -> Result<()> {
         Print(query),
         SetBackgroundColor(Color::Reset),
         SetForegroundColor(Color::Reset)
-    );
+    )?;
 
     stderr.flush()?;
 
     Ok(())
 }
 
-pub fn run(config: &Config) {
+pub fn run(config: &Config) -> Result<()> {
     let matcher = SkimMatcherV2::default();
 
     let root = traverse::Root::traverse(config).unwrap();
@@ -136,7 +135,7 @@ pub fn run(config: &Config) {
     };
     let mut selected_project = None;
 
-    execute!(stderr(), terminal::EnterAlternateScreen);
+    execute!(stderr(), terminal::EnterAlternateScreen)?;
     while !exit {
         ui_state.results = Vec::new();
         for remote in &root.remotes {
@@ -153,11 +152,11 @@ pub fn run(config: &Config) {
 
         ui_state.results.sort_by(|a, b| b.score.cmp(&a.score));
 
-        render(&ui_state.query, &ui_state);
+        render(&ui_state.query, &ui_state)?;
 
-        terminal::enable_raw_mode();
+        terminal::enable_raw_mode()?;
         let read_result = read();
-        terminal::disable_raw_mode();
+        terminal::disable_raw_mode()?;
 
         match read_result.unwrap() {
             Event::Key(event) => match event.code {
@@ -181,9 +180,10 @@ pub fn run(config: &Config) {
             _ => (),
         };
     }
-    execute!(stderr(), terminal::LeaveAlternateScreen);
+    execute!(stderr(), terminal::LeaveAlternateScreen)?;
 
     if let Some(path) = selected_project {
         println!("{}", path);
     }
+    Ok(())
 }
