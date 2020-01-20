@@ -24,10 +24,17 @@ struct MatchResult {
     score: i64,
 }
 
+enum VcsDisplay {
+    BranchName,
+    LastCommit,
+    ChangeCount,
+}
+
 struct UiState {
     query: String,
     results: Vec<MatchResult>,
     selected_index: usize,
+    vcs_display: VcsDisplay,
 }
 
 impl UiState {
@@ -56,6 +63,14 @@ impl UiState {
         self.query.pop();
         self.selected_index = 0;
     }
+
+    fn cycle_vcs_display(&mut self) {
+        self.vcs_display = match self.vcs_display {
+            VcsDisplay::LastCommit => VcsDisplay::BranchName,
+            VcsDisplay::BranchName => VcsDisplay::ChangeCount,
+            VcsDisplay::ChangeCount => VcsDisplay::LastCommit,
+        }
+    }
 }
 
 // https://jonasjacek.github.io/colors/
@@ -73,6 +88,12 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
     let mut row = rows - 3;
     for (i, result) in state.results.iter().enumerate() {
         let is_selected = i == state.selected_index;
+        let vcs_info = cache.get_vcs_info(&result.path);
+
+        let has_pending_changes = match &vcs_info {
+            Some(vcs_info) if vcs_info.uncommitted_changes > 0 => true,
+            _ => false,
+        };
 
         if is_selected {
             queue!(
@@ -88,7 +109,7 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
                 SetBackgroundColor(HIGHLIGHT_BG),
                 SetForegroundColor(Color::Reset),
                 cursor::MoveTo(0, row),
-                Print(" "),
+                Print(if has_pending_changes { "*" } else { " " }),
                 SetBackgroundColor(Color::Reset),
             )?;
         }
@@ -99,15 +120,16 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
         )?;
 
         let summary_col = 80;
-        if let Some(vcs_info) = cache.get_vcs_info(&result.path) {
-            queue!(
-                stderr,
-                cursor::MoveTo(summary_col - 2, row),
-                Print("  "),
-                Print(format!("{}", vcs_info.uncommitted_changes)),
-                cursor::MoveTo(summary_col + 4, row),
-                Print(&vcs_info.current_branch_name),
-            )?;
+        if let Some(vcs_info) = &vcs_info {
+            let vcs_summary = match state.vcs_display {
+                VcsDisplay::BranchName => vcs_info.current_branch_name.clone(),
+                VcsDisplay::LastCommit => vcs_info.last_commit_summary.clone(),
+                VcsDisplay::ChangeCount => {
+                    format!("{} pending changes", vcs_info.uncommitted_changes)
+                }
+            };
+
+            queue!(stderr, cursor::MoveTo(summary_col, row), Print(vcs_summary),)?;
         }
 
         queue!(
@@ -171,6 +193,7 @@ pub fn run(config: &Config) -> Result<()> {
 
     let mut exit = false;
     let mut ui_state = UiState {
+        vcs_display: VcsDisplay::LastCommit,
         query: String::from(""),
         results: vec![],
         selected_index: 0,
@@ -198,7 +221,7 @@ pub fn run(config: &Config) -> Result<()> {
 
         let mut input_available: bool = false;
         while !input_available && !cache.has_new_data() {
-            input_available = poll(Duration::from_millis(100)).unwrap();
+            input_available = poll(Duration::from_millis(50)).unwrap();
         }
         terminal::disable_raw_mode()?;
 
@@ -212,6 +235,7 @@ pub fn run(config: &Config) -> Result<()> {
                     KeyCode::Down => ui_state.select_prev(),
                     KeyCode::Up => ui_state.select_next(),
                     KeyCode::Esc => exit = true,
+                    KeyCode::Tab => ui_state.cycle_vcs_display(),
                     KeyCode::Enter => {
                         selected_project =
                             Some(ui_state.results[ui_state.selected_index].path.clone());
