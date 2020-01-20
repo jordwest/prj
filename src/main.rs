@@ -1,7 +1,6 @@
 mod commands;
 mod config;
-mod git;
-mod traverse;
+mod discovery;
 
 use config::Config;
 
@@ -13,5 +12,5 @@ fn main() {
     // let root = traverse::Root::traverse(&config).unwrap();
 
     // println!("{:#?}", root);
-    commands::cd::run(&config);
+    commands::cd::run(&config).unwrap();
 }

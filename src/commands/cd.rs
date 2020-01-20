@@ -1,6 +1,8 @@
 use crate::config::Config;
-use crate::git::GitProject;
-use crate::traverse;
+use crate::discovery::cache::{Cache, GitInfo};
+// use crate::discovery::git;
+// use crate::discovery::traverse;
+
 use crossterm::{
     cursor,
     event::{read, Event, KeyCode},
@@ -59,7 +61,7 @@ impl UiState {
 static HIGHLIGHT_BG: Color = Color::AnsiValue(236);
 static RESULT_FOOTER_FG: Color = Color::AnsiValue(219);
 
-fn render(query: &str, state: &UiState) -> Result<()> {
+fn render(query: &str, state: &UiState, cache: &Cache) -> Result<()> {
     let mut stderr = stderr();
 
     execute!(stderr, terminal::Clear(terminal::ClearType::All))?;
@@ -93,11 +95,27 @@ fn render(query: &str, state: &UiState) -> Result<()> {
             stderr,
             cursor::MoveTo(2, row),
             Print(result.path.to_str().unwrap()),
+        )?;
+
+        let summary_col = 80;
+        if let Some(git_info) = cache.git_info.get(&result.path) {
+            queue!(
+                stderr,
+                cursor::MoveTo(summary_col - 2, row),
+                Print("  "),
+                Print(format!("{}", git_info.changes)),
+                cursor::MoveTo(summary_col + 4, row),
+                Print(&git_info.head_ref),
+            )?;
+        }
+
+        queue!(
+            stderr,
             SetForegroundColor(Color::Reset),
             SetBackgroundColor(Color::Reset),
         )?;
 
-        if (row == 0) {
+        if row == 0 {
             break;
         }
         row -= 1;
@@ -127,7 +145,17 @@ fn render(query: &str, state: &UiState) -> Result<()> {
 pub fn run(config: &Config) -> Result<()> {
     let matcher = SkimMatcherV2::default();
 
-    let root = traverse::Root::traverse(config).unwrap();
+    let mut cache = Cache::new();
+    cache.find_all_projects(config).unwrap();
+
+    for (_, p) in &cache.projects {
+        match GitInfo::from_path(&p.path) {
+            Ok(git_info) => {
+                cache.git_info.insert(p.path.clone(), git_info);
+            }
+            Err(e) => println!("Error in {:?}: {:?}", p.path, e),
+        }
+    }
 
     let mut exit = false;
     let mut ui_state = UiState {
@@ -140,21 +168,19 @@ pub fn run(config: &Config) -> Result<()> {
     execute!(stderr(), terminal::EnterAlternateScreen)?;
     while !exit {
         ui_state.results = Vec::new();
-        for remote in &root.remotes {
-            for proj in &remote.projects {
-                let match_score = matcher.fuzzy_match(proj.path.to_str().unwrap(), &ui_state.query);
-                if let Some(score) = match_score {
-                    ui_state.results.push(MatchResult {
-                        score,
-                        path: proj.path.to_path_buf(),
-                    });
-                }
+        for (_, proj) in &cache.projects {
+            let match_score = matcher.fuzzy_match(proj.path.to_str().unwrap(), &ui_state.query);
+            if let Some(score) = match_score {
+                ui_state.results.push(MatchResult {
+                    score,
+                    path: proj.path.to_path_buf(),
+                });
             }
         }
 
         ui_state.results.sort_by(|a, b| b.score.cmp(&a.score));
 
-        render(&ui_state.query, &ui_state)?;
+        render(&ui_state.query, &ui_state, &cache)?;
 
         terminal::enable_raw_mode()?;
         let read_result = read();
@@ -179,8 +205,7 @@ pub fn run(config: &Config) -> Result<()> {
     execute!(stderr(), terminal::LeaveAlternateScreen)?;
 
     if let Some(path) = selected_project {
-        let p = GitProject::from_path(&path);
-        println!("{:#?}", p);
+        println!("{:?}", path);
     }
     Ok(())
 }
