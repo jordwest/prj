@@ -77,16 +77,59 @@ impl UiState {
 static HIGHLIGHT_BG: Color = Color::AnsiValue(236);
 static RESULT_FOOTER_FG: Color = Color::AnsiValue(219);
 
+fn truncate_end(s: &str, max_len: usize) -> String {
+    if s.len() > max_len {
+        let mut return_string = String::with_capacity(max_len);
+
+        s.chars()
+            .take(max_len - 2)
+            .for_each(|c| return_string.push(c));
+        return_string += "..";
+
+        return return_string;
+    }
+
+    s.to_string()
+}
+
+fn truncate_beginning(s: &str, max_len: usize) -> String {
+    if s.len() > max_len {
+        let ignore_count = (s.len() - max_len) + 2;
+        let mut return_string = String::with_capacity(max_len);
+        return_string += "..";
+        s.chars()
+            .skip(ignore_count)
+            .for_each(|c| return_string.push(c));
+
+        return return_string;
+    }
+
+    s.to_string()
+}
+
 fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
     let mut stderr = stderr();
 
     execute!(stderr, terminal::Clear(terminal::ClearType::All))?;
 
-    let (_, rows) = dimensions_stderr().unwrap();
+    let (cols, rows) = dimensions_stderr().unwrap();
     let rows = rows as u16;
 
     let mut row = rows - 3;
+    let result_row_count = (rows - 4) as usize;
+    let summary_col = (cols / 10) * 6;
+
+    let first_result = if state.selected_index > result_row_count {
+        state.selected_index - result_row_count
+    } else {
+        0
+    };
+
     for (i, result) in state.results.iter().enumerate() {
+        if i < first_result {
+            continue;
+        }
+
         let is_selected = i == state.selected_index;
         let vcs_info = cache.get_vcs_info(&result.path);
 
@@ -116,10 +159,12 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
         queue!(
             stderr,
             cursor::MoveTo(2, row),
-            Print(result.path.to_str().unwrap()),
+            Print(truncate_beginning(
+                result.path.to_str().unwrap(),
+                summary_col - 3,
+            )),
         )?;
 
-        let summary_col = 80;
         if let Some(vcs_info) = &vcs_info {
             let vcs_summary = match state.vcs_display {
                 VcsDisplay::BranchName => vcs_info.current_branch_name.clone(),
@@ -129,7 +174,11 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
                 }
             };
 
-            queue!(stderr, cursor::MoveTo(summary_col, row), Print(vcs_summary),)?;
+            queue!(
+                stderr,
+                cursor::MoveTo(summary_col as u16, row),
+                Print(truncate_end(&vcs_summary, cols - summary_col)),
+            )?;
         }
 
         queue!(
@@ -138,11 +187,33 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
             SetBackgroundColor(Color::Reset),
         )?;
 
-        if row == 0 {
+        if row == 1 {
             break;
         }
         row -= 1;
     }
+
+    let vcs_title = match state.vcs_display {
+        VcsDisplay::BranchName => "Branch",
+        VcsDisplay::LastCommit => "Last change",
+        VcsDisplay::ChangeCount => "Pending changes",
+    };
+    // Render heading
+    queue!(
+        stderr,
+        cursor::MoveTo(0, 0),
+        SetForegroundColor(Color::Black),
+        SetBackgroundColor(Color::White),
+        Print(format!(
+            "{:width_a$}{:width_b$}",
+            "  Project",
+            format!("{}   <TAB>", vcs_title),
+            width_a = summary_col as usize,
+            width_b = cols - summary_col as usize,
+        )),
+        SetBackgroundColor(Color::Reset),
+        SetForegroundColor(Color::Reset)
+    )?;
 
     let prompt_row = rows - 1;
     queue!(
