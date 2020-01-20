@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::discovery::cache::{Cache, CacheClient};
 use crate::discovery::git::fetch_vcs_info;
+use crate::discovery::traverse::Traverser;
 use crossterm::{
     cursor,
     event::{poll, read, Event, KeyCode},
@@ -145,13 +146,17 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
 pub fn run(config: &Config) -> Result<()> {
     let matcher = SkimMatcherV2::default();
 
-    let mut cache = Cache::new();
-    cache.find_all_projects(config).unwrap();
+    let cache = Cache::new();
 
     let mut cache = cache.share();
     let mut cache2 = cache.clone();
 
+    let root = Traverser::new(&config.root, 3);
     thread::spawn(move || {
+        for project in root {
+            cache2.add_project(project);
+        }
+
         for p in cache2.get_projects() {
             match fetch_vcs_info(&p.path) {
                 Ok(vcs_info) => {
@@ -159,7 +164,7 @@ pub fn run(config: &Config) -> Result<()> {
                 }
 
                 // TODO: Record a failure to read git info for this project
-                Err(e) => (),
+                Err(_) => (),
             }
         }
     });

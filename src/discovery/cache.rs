@@ -11,7 +11,6 @@ pub struct VcsInfo {
 
 #[derive(Debug, Clone)]
 pub struct Project {
-    pub name: String,
     pub path: PathBuf,
 }
 
@@ -73,6 +72,14 @@ impl CacheClient {
         let mut cache = self.cache.lock().unwrap();
         cache.update_count += 1;
         (*cache).vcs_info.insert(path.to_path_buf(), val);
+    }
+
+    pub fn add_project(&mut self, path: PathBuf) {
+        let mut cache = self.cache.lock().unwrap();
+        cache.update_count += 1;
+        (*cache)
+            .projects
+            .insert(path.to_path_buf(), Project { path });
     }
 
     pub fn has_new_data(&mut self) -> bool {
