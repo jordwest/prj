@@ -1,10 +1,9 @@
 use crate::config::Config;
-use crate::discovery::cache::Cache;
+use crate::discovery::cache::{Cache, CacheClient};
 use crate::discovery::git::fetch_vcs_info;
-
 use crossterm::{
     cursor,
-    event::{read, Event, KeyCode},
+    event::{poll, read, Event, KeyCode},
     execute, queue,
     style::{Color, Print, SetBackgroundColor, SetForegroundColor},
     terminal, Result,
@@ -14,6 +13,8 @@ use fuzzy_matcher::FuzzyMatcher;
 use std::cmp::Ord;
 use std::io::{stderr, Write};
 use std::path::PathBuf;
+use std::thread;
+use std::time::Duration;
 use term_size::dimensions_stderr;
 
 #[derive(Debug)]
@@ -60,7 +61,7 @@ impl UiState {
 static HIGHLIGHT_BG: Color = Color::AnsiValue(236);
 static RESULT_FOOTER_FG: Color = Color::AnsiValue(219);
 
-fn render(query: &str, state: &UiState, cache: &Cache) -> Result<()> {
+fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
     let mut stderr = stderr();
 
     execute!(stderr, terminal::Clear(terminal::ClearType::All))?;
@@ -97,7 +98,7 @@ fn render(query: &str, state: &UiState, cache: &Cache) -> Result<()> {
         )?;
 
         let summary_col = 80;
-        if let Some(vcs_info) = cache.vcs_info.get(&result.path) {
+        if let Some(vcs_info) = cache.get_vcs_info(&result.path) {
             queue!(
                 stderr,
                 cursor::MoveTo(summary_col - 2, row),
@@ -147,16 +148,21 @@ pub fn run(config: &Config) -> Result<()> {
     let mut cache = Cache::new();
     cache.find_all_projects(config).unwrap();
 
-    for (_, p) in &cache.projects {
-        match fetch_vcs_info(&p.path) {
-            Ok(vcs_info) => {
-                cache.vcs_info.insert(p.path.clone(), vcs_info);
-            }
+    let mut cache = cache.share();
+    let mut cache2 = cache.clone();
 
-            // TODO: Record a failure to read git info for this project
-            Err(e) => (),
+    thread::spawn(move || {
+        for p in cache2.get_projects() {
+            match fetch_vcs_info(&p.path) {
+                Ok(vcs_info) => {
+                    cache2.add_vcs_info(&p.path, vcs_info);
+                }
+
+                // TODO: Record a failure to read git info for this project
+                Err(e) => (),
+            }
         }
-    }
+    });
 
     let mut exit = false;
     let mut ui_state = UiState {
@@ -169,7 +175,7 @@ pub fn run(config: &Config) -> Result<()> {
     execute!(stderr(), terminal::EnterAlternateScreen)?;
     while !exit {
         ui_state.results = Vec::new();
-        for (_, proj) in &cache.projects {
+        for proj in cache.get_projects() {
             let match_score = matcher.fuzzy_match(proj.path.to_str().unwrap(), &ui_state.query);
             if let Some(score) = match_score {
                 ui_state.results.push(MatchResult {
@@ -184,24 +190,33 @@ pub fn run(config: &Config) -> Result<()> {
         render(&ui_state.query, &ui_state, &cache)?;
 
         terminal::enable_raw_mode()?;
-        let read_result = read();
+
+        let mut input_available: bool = false;
+        while !input_available && !cache.has_new_data() {
+            input_available = poll(Duration::from_millis(100)).unwrap();
+        }
         terminal::disable_raw_mode()?;
 
-        match read_result.unwrap() {
-            Event::Key(event) => match event.code {
-                KeyCode::Char(c) => ui_state.add_char(c),
-                KeyCode::Backspace => ui_state.remove_char(),
-                KeyCode::Down => ui_state.select_prev(),
-                KeyCode::Up => ui_state.select_next(),
-                KeyCode::Esc => exit = true,
-                KeyCode::Enter => {
-                    selected_project = Some(ui_state.results[ui_state.selected_index].path.clone());
-                    exit = true;
-                }
+        if input_available {
+            let read_result = read();
+
+            match read_result.unwrap() {
+                Event::Key(event) => match event.code {
+                    KeyCode::Char(c) => ui_state.add_char(c),
+                    KeyCode::Backspace => ui_state.remove_char(),
+                    KeyCode::Down => ui_state.select_prev(),
+                    KeyCode::Up => ui_state.select_next(),
+                    KeyCode::Esc => exit = true,
+                    KeyCode::Enter => {
+                        selected_project =
+                            Some(ui_state.results[ui_state.selected_index].path.clone());
+                        exit = true;
+                    }
+                    _ => (),
+                },
                 _ => (),
-            },
-            _ => (),
-        };
+            };
+        }
     }
     execute!(stderr(), terminal::LeaveAlternateScreen)?;
 
