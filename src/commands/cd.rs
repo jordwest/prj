@@ -1,7 +1,6 @@
 use crate::config::Config;
-use crate::discovery::cache::{Cache, GitInfo};
-// use crate::discovery::git;
-// use crate::discovery::traverse;
+use crate::discovery::cache::Cache;
+use crate::discovery::git::fetch_vcs_info;
 
 use crossterm::{
     cursor,
@@ -98,14 +97,14 @@ fn render(query: &str, state: &UiState, cache: &Cache) -> Result<()> {
         )?;
 
         let summary_col = 80;
-        if let Some(git_info) = cache.git_info.get(&result.path) {
+        if let Some(vcs_info) = cache.vcs_info.get(&result.path) {
             queue!(
                 stderr,
                 cursor::MoveTo(summary_col - 2, row),
                 Print("  "),
-                Print(format!("{}", git_info.changes)),
+                Print(format!("{}", vcs_info.uncommitted_changes)),
                 cursor::MoveTo(summary_col + 4, row),
-                Print(&git_info.head_ref),
+                Print(&vcs_info.current_branch_name),
             )?;
         }
 
@@ -149,11 +148,13 @@ pub fn run(config: &Config) -> Result<()> {
     cache.find_all_projects(config).unwrap();
 
     for (_, p) in &cache.projects {
-        match GitInfo::from_path(&p.path) {
-            Ok(git_info) => {
-                cache.git_info.insert(p.path.clone(), git_info);
+        match fetch_vcs_info(&p.path) {
+            Ok(vcs_info) => {
+                cache.vcs_info.insert(p.path.clone(), vcs_info);
             }
-            Err(e) => println!("Error in {:?}: {:?}", p.path, e),
+
+            // TODO: Record a failure to read git info for this project
+            Err(e) => (),
         }
     }
 
@@ -205,7 +206,7 @@ pub fn run(config: &Config) -> Result<()> {
     execute!(stderr(), terminal::LeaveAlternateScreen)?;
 
     if let Some(path) = selected_project {
-        println!("{:?}", path);
+        println!("{}", path.to_str().unwrap());
     }
     Ok(())
 }

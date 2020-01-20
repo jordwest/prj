@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug)]
-pub struct GitInfo {
-    pub head_ref: String,
-    pub changes: usize,
+pub struct VcsInfo {
+    pub last_commit_summary: String,
+    pub current_branch_name: String,
+    pub uncommitted_changes: usize,
 }
 
 #[derive(Debug)]
@@ -22,7 +23,7 @@ pub struct Remote {
 pub struct Cache {
     pub remotes: HashMap<PathBuf, Remote>,
     pub projects: HashMap<PathBuf, Project>,
-    pub git_info: HashMap<PathBuf, GitInfo>,
+    pub vcs_info: HashMap<PathBuf, VcsInfo>,
 }
 
 impl Cache {
@@ -30,7 +31,7 @@ impl Cache {
         Cache {
             remotes: HashMap::new(),
             projects: HashMap::new(),
-            git_info: HashMap::new(),
+            vcs_info: HashMap::new(),
         }
     }
 }
