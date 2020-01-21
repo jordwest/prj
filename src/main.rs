@@ -2,15 +2,22 @@ mod commands;
 mod config;
 mod discovery;
 
+use clap::{App, SubCommand};
 use config::Config;
 
 fn main() {
-    let config = Config::autoload().unwrap();
-    // println!("{:?}", config);
+    let matches = App::new("prj")
+        .version("1.0-alpha")
+        .author("Jordan West")
+        .about("Manage your local git projects")
+        .subcommand(SubCommand::with_name("configure").about("create a configuration"))
+        .subcommand(SubCommand::with_name("list").about("select a project"))
+        .get_matches();
 
-    // commands::configure::configure().unwrap();
-    // let root = traverse::Root::traverse(&config).unwrap();
-
-    // println!("{:#?}", root);
-    commands::cd::run(&config).unwrap();
+    if let Some(_) = matches.subcommand_matches("configure") {
+        commands::configure::configure().unwrap();
+    } else if let Some(_) = matches.subcommand_matches("list") {
+        let config = Config::autoload().unwrap();
+        commands::cd::run(&config).unwrap();
+    }
 }
