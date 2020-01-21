@@ -4,6 +4,7 @@ mod discovery;
 
 use clap::{App, SubCommand};
 use config::Config;
+use std::process::exit;
 
 fn main() {
     let matches = App::new("prj")
@@ -19,5 +20,8 @@ fn main() {
     } else if let Some(_) = matches.subcommand_matches("list") {
         let config = Config::autoload().unwrap();
         commands::cd::run(&config).unwrap();
+    } else {
+        println!("{}", matches.usage());
+        exit(1)
     }
 }

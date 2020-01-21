@@ -322,6 +322,9 @@ pub fn run(config: &Config) -> Result<()> {
 
     if let Some(path) = selected_project {
         println!("{}", path.to_str().unwrap());
+        return Ok(());
     }
-    Ok(())
+
+    // TODO - change this to a result
+    panic!("Nothing selected")
 }
