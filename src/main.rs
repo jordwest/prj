@@ -19,7 +19,10 @@ fn main() {
         commands::configure::configure().unwrap();
     } else if let Some(_) = matches.subcommand_matches("list") {
         let config = Config::autoload().unwrap();
-        commands::cd::run(&config).unwrap();
+
+        if let Err(_) = commands::cd::run(&config) {
+            exit(1);
+        }
     } else {
         println!("{}", matches.usage());
         exit(1)

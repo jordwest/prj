@@ -1,5 +1,4 @@
 use super::cache::VcsInfo;
-use git2::StatusEntry;
 use git2::{Repository, StatusOptions};
 use std::path::Path;
 

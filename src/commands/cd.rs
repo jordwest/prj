@@ -7,7 +7,7 @@ use crossterm::{
     event::{poll, read, Event, KeyCode},
     execute, queue,
     style::{Color, Print, SetBackgroundColor, SetForegroundColor},
-    terminal, Result,
+    terminal,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -35,6 +35,11 @@ struct UiState {
     results: Vec<MatchResult>,
     selected_index: usize,
     vcs_display: VcsDisplay,
+}
+
+pub enum CommandError {
+    NothingSelected,
+    RenderError(crossterm::ErrorKind),
 }
 
 impl UiState {
@@ -107,7 +112,7 @@ fn truncate_beginning(s: &str, max_len: usize) -> String {
     s.to_string()
 }
 
-fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
+fn render(query: &str, state: &UiState, cache: &CacheClient) -> crossterm::Result<()> {
     let mut stderr = stderr();
 
     execute!(stderr, terminal::Clear(terminal::ClearType::All))?;
@@ -236,7 +241,7 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> Result<()> {
     Ok(())
 }
 
-pub fn run(config: &Config) -> Result<()> {
+pub fn run(config: &Config) -> Result<(), CommandError> {
     let matcher = SkimMatcherV2::default();
 
     let cache = Cache::new();
@@ -271,7 +276,8 @@ pub fn run(config: &Config) -> Result<()> {
     };
     let mut selected_project = None;
 
-    execute!(stderr(), terminal::EnterAlternateScreen)?;
+    execute!(stderr(), terminal::EnterAlternateScreen)
+        .or_else(|e| Err(CommandError::RenderError(e)))?;
     while !exit {
         ui_state.results = Vec::new();
         for proj in cache.get_projects() {
@@ -286,15 +292,16 @@ pub fn run(config: &Config) -> Result<()> {
 
         ui_state.results.sort_by(|a, b| b.score.cmp(&a.score));
 
-        render(&ui_state.query, &ui_state, &cache)?;
+        render(&ui_state.query, &ui_state, &cache)
+            .or_else(|e| Err(CommandError::RenderError(e)))?;
 
-        terminal::enable_raw_mode()?;
+        terminal::enable_raw_mode().or_else(|e| Err(CommandError::RenderError(e)))?;
 
         let mut input_available: bool = false;
         while !input_available && !cache.has_new_data() {
             input_available = poll(Duration::from_millis(50)).unwrap();
         }
-        terminal::disable_raw_mode()?;
+        terminal::disable_raw_mode().or_else(|e| Err(CommandError::RenderError(e)))?;
 
         if input_available {
             let read_result = read();
@@ -318,13 +325,13 @@ pub fn run(config: &Config) -> Result<()> {
             };
         }
     }
-    execute!(stderr(), terminal::LeaveAlternateScreen)?;
+    execute!(stderr(), terminal::LeaveAlternateScreen)
+        .or_else(|e| Err(CommandError::RenderError(e)))?;
 
     if let Some(path) = selected_project {
         println!("{}", path.to_str().unwrap());
         return Ok(());
     }
 
-    // TODO - change this to a result
-    panic!("Nothing selected")
+    return Err(CommandError::NothingSelected);
 }
