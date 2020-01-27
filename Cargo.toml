@@ -1,8 +1,10 @@
 [package]
 name = "prj"
+description = "Navigate between local repos quickly with fuzzy find and git summaries"
 version = "0.1.0"
 authors = ["Jordan West <jordwest@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 [dependencies]
 toml = "0.5"
