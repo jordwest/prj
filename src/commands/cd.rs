@@ -79,7 +79,8 @@ impl UiState {
 }
 
 // https://jonasjacek.github.io/colors/
-static HIGHLIGHT_BG: Color = Color::AnsiValue(236);
+static HIGHLIGHT_BG: Color = Color::White;
+static HIGHLIGHT_FG: Color = Color::Black;
 static RESULT_FOOTER_FG: Color = Color::AnsiValue(219);
 
 fn truncate_end(s: &str, max_len: usize) -> String {
@@ -147,17 +148,29 @@ fn render(query: &str, state: &UiState, cache: &CacheClient) -> crossterm::Resul
             queue!(
                 stderr,
                 SetBackgroundColor(HIGHLIGHT_BG),
-                SetForegroundColor(Color::White),
+                SetForegroundColor(match has_pending_changes {
+                    true => Color::Red,
+                    false => HIGHLIGHT_FG,
+                }),
                 cursor::MoveTo(0, row),
-                Print("> "),
+                Print(match has_pending_changes {
+                    true => ">*",
+                    false => "> ",
+                }),
             )?;
         } else {
             queue!(
                 stderr,
-                SetBackgroundColor(HIGHLIGHT_BG),
-                SetForegroundColor(Color::Reset),
+                SetBackgroundColor(Color::Reset),
+                SetForegroundColor(match has_pending_changes {
+                    true => Color::Red,
+                    false => Color::Reset,
+                }),
                 cursor::MoveTo(0, row),
-                Print(if has_pending_changes { "*" } else { " " }),
+                Print(match has_pending_changes {
+                    true => "*",
+                    false => " ",
+                }),
                 SetBackgroundColor(Color::Reset),
             )?;
         }
