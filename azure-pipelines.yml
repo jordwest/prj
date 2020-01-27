@@ -3,14 +3,22 @@
 trigger:
 - master
 
+strategy:
+  matrix:
+    linux:
+      imageName: 'ubuntu-latest'
+    mac:
+      imageName: 'macos-10.14'
+    windows:
+      imageName: 'windows-2019'
+
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: $(imageName)
 
 steps:
-- script: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+- bash: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   displayName: 'Install Rust'
 
-- script: |
-    cargo install prj
-    prj configure
+- bash: |
+    cargo build
   displayName: 'Build'
