@@ -17,6 +17,18 @@ pool:
 
 steps:
 - bash: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  condition: not(eq( variables['Agent.OS'], 'Windows_NT' ))
+  displayName: 'Install Rust'
+
+- script: |
+    $url = "https://static.rust-lang.org/rustup/dist/i686-pc-windows-gnu/rustup-init.exe"
+    $outpath = "$PSScriptRoot/rustup-init.exe"
+
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile($url, $outpath)
+
+    Start-Process -Filepath $outpath
+  condition: eq( variables['Agent.OS'], 'Windows_NT' )
   displayName: 'Install Rust'
 
 - bash: |
