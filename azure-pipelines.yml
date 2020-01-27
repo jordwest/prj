@@ -41,7 +41,7 @@ steps:
   condition: eq( variables['Agent.OS'], 'Windows_NT' )
   displayName: 'Install Rust (Windows)'
 
-- script: |
+- bash: |
     cargo build --release --target $TARGET
   displayName: 'Build'
 
@@ -58,6 +58,7 @@ steps:
     sourceFolder: '$(Build.SourcesDirectory)/target/$(TARGET)/release'
     contents: |
       prj
+      prj.exe
     targetFolder: '$(Build.BinariesDirectory)/prj'
 
 - task: ArchiveFiles@2
