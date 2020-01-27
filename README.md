@@ -2,10 +2,6 @@
 
 `prj` is a command line tool that helps you jump between your local `git` repositories.
 
-## Demo
-
-[![screenshot of demo](./doc/asciinema-screen.png)](https://asciinema.org/a/296118)
-
 ## Features
 
 - Fast fuzzy find your project thanks to [fuzzy-matcher](https://github.com/lotabout/fuzzy-matcher)
@@ -13,6 +9,10 @@
   - Last commit summary
   - Currently checked out branch
   - Pending/uncommitted changes
+
+## Demo
+
+[![screenshot of demo](./doc/asciinema-screen.png)](https://asciinema.org/a/296118)
 
 ## Installation
 
@@ -24,6 +24,8 @@ brew install prj
 ```
 
 ### All platforms
+
+Note **openssl** must be installed.
 
 This hasn't yet been tested on other platforms, but binaries are available for Windows, Linux and MacOS.
 
@@ -45,9 +47,21 @@ Set the root to search projects with:
 prj configure
 ```
 
-Running `prj list` will show the interactive search and send the selected project to `stdout`.
+This will create a `.prj` file in your home directory containing the configuration in TOML format.
 
-The recommended way to jump to projects is to add a function to your `.bashrc` or `.profile` to send the output of `prj list` to the `cd` command:
+## Usage
+
+### `prj list`
+
+Running `prj list` will show an interactive fuzzy search.
+
+Start typing to search the list. Projects marked with `*` and highlighted in red are projects with uncommitted changes.
+
+`<TAB>` cycles through the repository information displayed in the second column.
+
+`<ESC>` cancels and exits.
+
+When a project is selected, the path to the project will be sent to `stdout`. You can cd into the selected directory with `cd $(prj list)`, however the recommended way to jump to projects is to add a function to your `.bashrc` or `.profile`:
 
 ```sh
 function p() {

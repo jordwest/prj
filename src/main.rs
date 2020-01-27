@@ -11,8 +11,8 @@ fn main() {
         .version("0.1.0")
         .author("Jordan West")
         .about("Manage your local git projects")
-        .subcommand(SubCommand::with_name("configure").about("create a configuration"))
-        .subcommand(SubCommand::with_name("list").about("select a project"))
+        .subcommand(SubCommand::with_name("configure").about("Create a configuration"))
+        .subcommand(SubCommand::with_name("list").about("Select a project"))
         .get_matches();
 
     if let Some(_) = matches.subcommand_matches("configure") {
