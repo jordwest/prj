@@ -8,7 +8,7 @@ use std::process::exit;
 
 fn main() {
     let matches = App::new("prj")
-        .version("1.0-alpha")
+        .version("0.1.0")
         .author("Jordan West")
         .about("Manage your local git projects")
         .subcommand(SubCommand::with_name("configure").about("create a configuration"))
