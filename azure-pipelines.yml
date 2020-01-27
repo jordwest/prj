@@ -1,0 +1,16 @@
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- script: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  displayName: 'Install Rust'
+
+- script: |
+    cargo install prj
+    prj configure
+  displayName: 'Build'
