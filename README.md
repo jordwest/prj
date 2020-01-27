@@ -23,9 +23,13 @@ brew tap jordwest/homebrew-tools
 brew install prj
 ```
 
-### Other platforms
+### All platforms
 
-This hasn't yet been tested on other platforms, but it's theoretically compatible with Linux and Windows.
+This hasn't yet been tested on other platforms, but binaries are available for Windows, Linux and MacOS.
+
+Check the [Releases](https://github.com/jordwest/prj/releases) tab for the latest build.
+
+### Compiling from source
 
 First install [Rust](https://www.rust-lang.org/tools/install), then run:
 
